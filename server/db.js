@@ -1,27 +1,22 @@
 // server/db.js
 import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// --- Путь к текущей директории ---
+// --- Определяем путь к базе данных ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// --- Абсолютный путь к файлу базы данных ---
 const dbPath = path.join(__dirname, "data.db");
 
-// --- Асинхронное подключение SQLite ---
-const dbPromise = open({
-  filename: dbPath,
-  driver: sqlite3.Database
+// --- Создаём подключение к SQLite ---
+const db = new sqlite3.Database(dbPath, err => {
+  if (err) console.error("❌ DB connection error:", err);
+  else console.log(`✅ SQLite ready: ${dbPath}`);
 });
 
-(async () => {
-  const db = await dbPromise;
-
-  // --- Таблица пользователей ---
-  await db.exec(`
+// --- Инициализация таблиц ---
+db.serialize(() => {
+  db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       tg_id TEXT UNIQUE,
@@ -33,8 +28,7 @@ const dbPromise = open({
     );
   `);
 
-  // --- Таблица услуг ---
-  await db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS services (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT,
@@ -46,8 +40,7 @@ const dbPromise = open({
     );
   `);
 
-  // --- Таблица покупок ---
-  await db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS purchases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -58,30 +51,28 @@ const dbPromise = open({
     );
   `);
 
-  console.log(`✅ SQLite ready: ${dbPath}`);
+  console.log("✅ Tables initialized");
+});
 
-  // --- Проверка старой структуры users ---
-  const columns = await db.all(`PRAGMA table_info(users);`);
-  const hasRole = columns.some(col => col.name === "role");
-  if (!hasRole) {
-    await db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`);
-    console.log("🛠️ Added missing column 'role' to users table");
-  }
-
-  // --- Автоматическое создание админов из .env ---
-  if (process.env.ADMIN_TG_IDS) {
-    const admins = process.env.ADMIN_TG_IDS.split(",").map(id => id.trim()).filter(Boolean);
-    for (const tg_id of admins) {
-      const existing = await db.get("SELECT * FROM users WHERE tg_id = ?", tg_id);
-      if (existing && existing.role !== "admin") {
-        await db.run("UPDATE users SET role = 'admin' WHERE tg_id = ?", tg_id);
+// --- Автоматическое назначение админов из .env ---
+if (process.env.ADMIN_TG_IDS) {
+  const admins = process.env.ADMIN_TG_IDS.split(",").map(id => id.trim());
+  admins.forEach(tg_id => {
+    db.get("SELECT * FROM users WHERE tg_id = ?", [tg_id], (err, row) => {
+      if (err) return console.error("DB error:", err);
+      if (row && row.role !== "admin") {
+        db.run("UPDATE users SET role = 'admin' WHERE tg_id = ?", tg_id);
         console.log(`⭐ Updated admin role for TG ${tg_id}`);
-      } else if (!existing) {
-        await db.run("INSERT INTO users (tg_id, username, role, balance) VALUES (?, ?, 'admin', 0)", tg_id, "admin");
+      } else if (!row) {
+        db.run(
+          "INSERT INTO users (tg_id, username, role, balance) VALUES (?, ?, 'admin', 0)",
+          tg_id,
+          "admin"
+        );
         console.log(`👑 Created new admin user for TG ${tg_id}`);
       }
-    }
-  }
-})().catch(err => console.error("❌ DB init error:", err));
+    });
+  });
+}
 
-export default dbPromise;
+export default db;
