@@ -7,7 +7,7 @@ services:
     buildCommand: |
       npm install --prefix client
       chmod +x ./client/node_modules/.bin/vite
-      npx --prefix client vite build
+      cd client && npx vite build && cd ..
       npm install --prefix server
     startCommand: npm start --prefix server
     envVars:
