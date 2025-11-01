@@ -1,0 +1,13 @@
+{
+  "name": "mvp-bonus-tma-server",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "sqlite": "^5.1.1"
+  }
+}
