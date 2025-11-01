@@ -2,12 +2,12 @@
   "name": "bonus-tma-server",
   "type": "module",
   "scripts": {
-    "start": "npm rebuild sqlite3 --build-from-source && node index.js"
+    "start": "node index.js"
   },
   "dependencies": {
+    "better-sqlite3": "^9.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "sqlite3": "^5.1.7"
+    "express": "^4.19.2"
   }
 }
