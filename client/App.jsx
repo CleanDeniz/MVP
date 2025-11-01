@@ -1,3 +1,4 @@
+// client/App.jsx
 import React, { useEffect, useState } from "react";
 import Home from "./pages/Home.jsx";
 import Catalog from "./pages/Catalog.jsx";
@@ -19,7 +20,8 @@ export default function App() {
     try {
       const res = await apiGET("/api/user/me");
       setMe(res.user ? { ...res.user, tg: res.tgUser } : { error: "no-user" });
-    } catch {
+    } catch (e) {
+      console.warn("loadMe failed", e);
       setMe({ error: "api-failed" });
     }
   }
@@ -38,7 +40,11 @@ export default function App() {
         <div style={{ fontWeight: 800, letterSpacing: 0.5 }}>bonus.mini</div>
         <div className="nav">
           {tabs.map(t => (
-            <button key={t.key} className={"btn" + (tab === t.key ? " primary" : "")} onClick={() => setTab(t.key)}>
+            <button
+              key={t.key}
+              className={"btn" + (tab === t.key ? " primary" : "")}
+              onClick={() => setTab(t.key)}
+            >
               {t.title}
             </button>
           ))}
@@ -47,10 +53,15 @@ export default function App() {
 
       <div className="container">
         {!me && <div className="card">Загрузка…</div>}
-        {me && tab === "home" && <Home me={me} onUpdated={loadMe} />}
-        {me && tab === "catalog" && <Catalog me={me} onUpdated={loadMe} />}
-        {me && tab === "my" && <MyServices />}
-        {me && isAdmin && tab === "admin" && <Admin />}
+        {me?.error === "api-failed" && (
+          <div className="card">
+            Не удалось получить профиль. Проверь .env (VITE_SERVER_URL) и заголовок X-Telegram-Init-Data.
+          </div>
+        )}
+        {me && !me.error && tab === "home" && <Home me={me} onUpdated={loadMe} />}
+        {me && !me.error && tab === "catalog" && <Catalog me={me} onUpdated={loadMe} />}
+        {me && !me.error && tab === "my" && <MyServices />}
+        {me && !me.error && isAdmin && tab === "admin" && <Admin />}
       </div>
     </div>
   );
