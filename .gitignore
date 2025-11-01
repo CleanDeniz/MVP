@@ -1,0 +1,4 @@
+echo "node_modules/" > .gitignore
+echo "*.log" >> .gitignore
+echo "client/node_modules/" >> .gitignore
+echo "server/node_modules/" >> .gitignore
