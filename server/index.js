@@ -9,8 +9,7 @@ dotenv.config();
 
 const PORT = Number(process.env.PORT || 3001);
 
-// В .env можно задать несколько источников через запятую:
-// CLIENT_ORIGINS=http://localhost:5173,https://*.ngrok-free.app
+// Допускаем несколько источников, через запятую
 const rawOrigins = (process.env.CLIENT_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
 const ALWAYS_ALLOW = new Set([
   "http://localhost:5173",
@@ -25,11 +24,11 @@ const ADMIN_TG_IDS = String(process.env.ADMIN_TG_IDS || "")
 
 const app = express();
 
-/* ---------- CORS: первее всего ---------- */
+/* ---------- CORS ---------- */
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  // если знаем источник — отзеркаливаем; иначе — "*" (для WebView бывает без Origin)
-  if (origin && (ALWAYS_ALLOW.has(origin) || [...ALWAYS_ALLOW].some(o => o.endsWith("*") ? origin.startsWith(o.slice(0, -1)) : false))) {
+  // Telegram WebView часто не передаёт Origin, поэтому "*" допустимо
+  if (origin && (ALWAYS_ALLOW.has(origin) || [...ALWAYS_ALLOW].some(o => o.endsWith("*") && origin.startsWith(o.slice(0, -1))))) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -45,7 +44,7 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-/* ---------- хелперы ---------- */
+/* ---------- Helpers ---------- */
 function isAdminTgId(tgId) {
   return ADMIN_TG_IDS.includes(String(tgId));
 }
@@ -60,10 +59,10 @@ async function getOrCreateUserByTgId(db, tgId, username) {
   return row;
 }
 
-/* ---------- auth (должен идти до роутов API) ---------- */
+/* ---------- Telegram Auth Middleware ---------- */
 app.use(authMiddleware);
 
-/* ---------- user sync (назначение админов) ---------- */
+/* ---------- Sync user (создаём или обновляем роль) ---------- */
 app.use(async (req, res, next) => {
   try {
     if (req.tgUser?.id) {
@@ -81,7 +80,7 @@ app.use(async (req, res, next) => {
   }
 });
 
-/* ---------- health ---------- */
+/* ---------- Healthcheck ---------- */
 app.get("/ping", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 /* ---------- USERS ---------- */
@@ -95,7 +94,6 @@ app.post("/api/user/phone", async (req, res) => {
 
   try {
     const db = await dbPromise;
-    // запретим одинаковый номер у разных tg_id
     const exists = await db.get(
       "SELECT id FROM users WHERE phone = ? AND tg_id != ?",
       phone,
@@ -108,7 +106,6 @@ app.post("/api/user/phone", async (req, res) => {
       const updated = await db.get("SELECT * FROM users WHERE tg_id = ?", String(req.tgUser.id));
       return res.json({ user: updated });
     } else {
-      // fallback: если человек ещё не в базе с tg_id
       await db.run("INSERT INTO users (phone, balance) VALUES (?, 0)", phone);
       const just = await db.get("SELECT * FROM users WHERE phone = ?", phone);
       return res.json({ user: just });
@@ -253,12 +250,12 @@ app.get("/api/admin/users", requireAdmin, async (_req, res) => {
   return res.json({ users: rows });
 });
 
-/* ---------- 404 с CORS ---------- */
+/* ---------- 404 ---------- */
 app.use((req, res) => {
   res.status(404).json({ error: "not found", path: req.path });
 });
 
 /* ---------- START ---------- */
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
